@@ -1,0 +1,45 @@
+# =============================================================================
+#  params.dat — paramètres du calcul (format « cle valeur », # = commentaire)
+#  Surcharges en ligne de commande : ./chaleur params.dat Nx=200 Ny=200 cas=1
+# =============================================================================
+
+# --- Domaine [0,Lx]x[0,Ly] et maillage (Nx, Ny = inconnues intérieures) ---
+Nx                  100
+Ny                  100
+Lx                  1.0
+Ly                  1.0
+D                   1.0
+
+# --- Temps (Euler implicite) ---
+# Cas 1-2 (stationnaires) : grand pas de temps et arrêt sur tol_stationnaire,
+#                           ex. dt=1 Tf=1000 tol_stationnaire=1e-12
+# Cas 3 (période 4)       : ex. dt=0.01 Tf=8
+dt                  0.01
+Tf                  8.0
+tol_stationnaire    1e-12
+
+# --- Cas test : 1, 2 (stationnaires, solution exacte) ou 3 (instationnaire périodique) ---
+cas                 3
+
+# --- Solveur linéaire local : gc (Dirichlet) | bicgstab (Robin) ---
+solveur             gc
+tol_solveur         1e-12
+itmax_solveur       10000
+
+# --- Schwarz additif ---
+# recouvrement = r = nombre de lignes d'inconnues communes à deux sous-domaines voisins
+#   Dirichlet : r >= 0 (r = 0 : Jacobi par blocs) ; Robin : r >= 2
+# Transmission alpha du/dn + beta u : alpha = 0, beta = 1 -> Dirichlet ; alpha != 0 -> Robin
+recouvrement        2
+alpha               0.0
+beta                1.0
+tol_schwarz         1e-8
+itmax_schwarz       1000
+# 0 : MPI_Sendrecv (bloquant) ; 1 : MPI_Isend / MPI_Irecv + MPI_Waitall (non bloquant)
+comm_non_bloquante  0
+
+# --- Sorties ---
+# freq_sortie : instantané tous les freq_sortie pas de temps (0 = solution finale seulement)
+freq_sortie         0
+dossier_sortie      resultats
+fichier_perf        resultats/perf.csv
