@@ -105,7 +105,7 @@ int main(int argc, char **argv)
 {
     // paramètres :
     int n, n_squared;
-    double Lx, Ly, dx, dy,D,x,y;
+    double Lx, Ly, dx, dy,D,x,y, t, pi;
     double *g, *h, *u, *f, *u_exact;
 
     n=10;
@@ -115,6 +115,8 @@ int main(int argc, char **argv)
     dx=Lx/(n-1);
     dy=Ly/(n-1);
     D=1.0;
+    t=0.0;
+    pi=4.0*atan(1.0);
 
 
     h=(double *)malloc(n*n*sizeof(double));
@@ -122,6 +124,7 @@ int main(int argc, char **argv)
     u=(double *)malloc(n*n*sizeof(double));
     f=(double *)malloc(n*n*sizeof(double));
     u_exact=(double *)malloc(n*n*sizeof(double));
+
 
     for(int i=0; i<n; i++){
         for(int j=0; j<n; j++){
@@ -170,9 +173,89 @@ int main(int argc, char **argv)
     printf("Erreur max : %e\n", error);
 
 
+    
+
+    // Euler implicite :  (I/dt - D*Lap) u^{k+1} = u^k/dt + f(t^{k+1})
+
+    
+    double dt=0.01, Tf=8.0, periode=4.0;
+    int nb_pas=(int)round(Tf/dt);
+    int pas_periode=(int)round(periode/dt);
+    double *b, *u_prec;
+    b     =(double *)malloc(n_squared*sizeof(double));
+    u_prec=(double *)malloc(n_squared*sizeof(double));   // u(Tf - periode)
+
+    // Conditions aux limites et condition initiale u(x,y,0) = 0
+    for(int i=0; i<n; i++){
+        for(int j=0; j<n; j++){
+            h[i*n+j]=1.0;
+            g[i*n+j]=0.0;
+            u[i*n+j]=0.0;
+        }
+    }
+
+    // Matrice du schéma implicite (indépendante du temps)
+    for (int k=0; k<n_squared; k++){
+        int ix=k/n, iy=k%n;
+        for (int l=0; l<n_squared; l++) A[k*n_squared+l]=0.0;
+        if (ix==0 || ix==n-1 || iy==0 || iy==n-1){   // point de bord
+            A[k*n_squared+k]=1.0;
+        } else {
+            A[k*n_squared+k]  =1.0/dt+D*alpha;
+            A[k*n_squared+k-1]=-D/(dy*dy);
+            A[k*n_squared+k+1]=-D/(dy*dy);
+            A[k*n_squared+k-n]=-D/(dx*dx);
+            A[k*n_squared+k+n]=-D/(dx*dx);
+        }
+    }
+
+    // Boucle en temps
+    int k_centre=(n/2)*n+n/2;
+    for (int pas=1; pas<=nb_pas; pas++){
+        t=pas*dt;
+
+        for (int k=0; k<n_squared; k++){
+            int ix=k/n, iy=k%n;
+            x=ix*dx;
+            y=iy*dy;
+            if (ix==0 || ix==n-1){                   // Gamma1 (coins inclus)
+                b[k]=h[k];
+            } else if (iy==0 || iy==n-1){            // Gamma0
+                b[k]=g[k];
+            } else {
+                f[k]=exp(-(x-Lx/2.0)*(x-Lx/2.0))*exp(-(y-Ly/2.0)*(y-Ly/2.0))*cos(pi*t/2.0);
+                b[k]=u[k]/dt+f[k];
+            }
+        }
+
+        // u^k sert d'initialisation pour BiCG
+        if (bicg(n_squared, A, b, u, tol, itmax)<0){
+            printf("Arrêt au pas %d (t = %f)\n", pas, t);
+            break;
+        }
+
+        if (pas%50==0) printf("t = %6.2f   u(centre) = %e\n", t, u[k_centre]);
+        if (pas==nb_pas-pas_periode)
+            for (int k=0; k<n_squared; k++) u_prec[k]=u[k];
+    }
+
+    // Vérification de la périodicité : max |u(Tf) - u(Tf - 4)|
+    double ecart=0.0;
+    for (int k=0; k<n_squared; k++){
+        if (fabs(u[k]-u_prec[k])>ecart) ecart=fabs(u[k]-u_prec[k]);
+    }
+    printf("Périodicité : max |u(%.1f) - u(%.1f)| = %e\n", Tf, Tf-periode, ecart);
 
 
-
+    // Libération de la mémoire
+    free(h);
+    free(g);
+    free(u);
+    free(f);
+    free(u_exact);
+    free(A);
+    free(b);
+    free(u_prec);
 
     return 0;
 }
